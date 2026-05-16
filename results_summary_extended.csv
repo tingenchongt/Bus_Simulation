@@ -1,0 +1,49 @@
+session,data_origin,policy,informal_stops,short_dwell_scale,signal_scenario,first_signal_green_eb,second_signal_green_wb,signal_offset_s,wm_to_rb_demand_shift_s,mixed_traffic,vol_rb_to_wm,vol_wm_to_rb,n_rows_calibration_subset,demand_window_s,demand_window_capped,avg_travel_time_s,avg_delay_s,delay_ratio,completed_trips,total_trips,total_distance_m,avg_speed_mps
+Morning Session,robinsons_location,baseline_all_stops,True,,sig1_G_sig2_G,True,True,0.0,0.0,True,138,57,138,3480.0,False,242.75,23.34,0.0962,1525,1525,5328700.0,14.394
+Morning Session,robinsons_location,baseline_all_stops,True,,sig1_G_sig2_R,True,False,0.0,45.0,True,138,57,138,3480.0,False,242.15,22.74,0.0939,1525,1525,5328700.0,14.43
+Morning Session,robinsons_location,baseline_all_stops,True,,sig1_R_sig2_G,False,True,45.0,0.0,True,138,57,138,3480.0,False,244.05,24.64,0.101,1525,1525,5328700.0,14.318
+Morning Session,robinsons_location,baseline_all_stops,True,,sig1_R_sig2_R,False,False,45.0,45.0,True,138,57,138,3480.0,False,244.46,25.05,0.1025,1525,1525,5328700.0,14.294
+Morning Session,robinsons_location,optimized_formal_only,False,,sig1_G_sig2_G,True,True,0.0,0.0,True,138,57,138,3480.0,False,228.31,20.9,0.0915,1525,1525,5023700.0,14.429
+Morning Session,robinsons_location,optimized_formal_only,False,,sig1_G_sig2_R,True,False,0.0,45.0,True,138,57,138,3480.0,False,227.7,20.29,0.0891,1525,1525,5023700.0,14.467
+Morning Session,robinsons_location,optimized_formal_only,False,,sig1_R_sig2_G,False,True,45.0,0.0,True,138,57,138,3480.0,False,230.0,22.59,0.0982,1525,1525,5023700.0,14.323
+Morning Session,robinsons_location,optimized_formal_only,False,,sig1_R_sig2_R,False,False,45.0,45.0,True,138,57,138,3480.0,False,230.41,23.0,0.0998,1525,1525,5023700.0,14.297
+Morning Session,waltermart_location,baseline_all_stops,True,,sig1_G_sig2_G,True,True,0.0,0.0,True,138,57,57,3840.0,False,243.56,24.19,0.0993,1530,1530,5346140.0,14.346
+Morning Session,waltermart_location,baseline_all_stops,True,,sig1_G_sig2_R,True,False,0.0,45.0,True,138,57,57,3840.0,False,242.91,23.53,0.0969,1530,1530,5346140.0,14.385
+Morning Session,waltermart_location,baseline_all_stops,True,,sig1_R_sig2_G,False,True,45.0,0.0,True,138,57,57,3840.0,False,241.83,22.45,0.0928,1530,1530,5346140.0,14.449
+Morning Session,waltermart_location,baseline_all_stops,True,,sig1_R_sig2_R,False,False,45.0,45.0,True,138,57,57,3840.0,False,242.08,22.7,0.0938,1530,1530,5346140.0,14.434
+Morning Session,waltermart_location,optimized_formal_only,False,0.55,sig1_G_sig2_G,True,True,0.0,0.0,True,138,57,57,3840.0,False,224.15,21.33,0.0952,1530,1530,5040140.0,14.696
+Morning Session,waltermart_location,optimized_formal_only,False,0.55,sig1_G_sig2_R,True,False,0.0,45.0,True,138,57,57,3840.0,False,223.69,20.88,0.0933,1530,1530,5040140.0,14.726
+Morning Session,waltermart_location,optimized_formal_only,False,0.55,sig1_R_sig2_G,False,True,45.0,0.0,True,138,57,57,3840.0,False,223.55,20.73,0.0927,1530,1530,5040140.0,14.736
+Morning Session,waltermart_location,optimized_formal_only,False,0.55,sig1_R_sig2_R,False,False,45.0,45.0,True,138,57,57,3840.0,False,223.79,20.97,0.0937,1530,1530,5040140.0,14.72
+Lunch,robinsons_location,baseline_all_stops,True,,sig1_G_sig2_G,True,True,0.0,0.0,True,44,83,44,2940.0,False,256.92,36.24,0.1411,990,990,3571770.0,14.043
+Lunch,robinsons_location,baseline_all_stops,True,,sig1_G_sig2_R,True,False,0.0,45.0,True,44,83,44,2940.0,False,242.8,22.12,0.0911,990,990,3481650.0,14.484
+Lunch,robinsons_location,baseline_all_stops,True,,sig1_R_sig2_G,False,True,45.0,0.0,True,44,83,44,2940.0,False,237.17,16.49,0.0695,990,990,3459120.0,14.732
+Lunch,robinsons_location,baseline_all_stops,True,,sig1_R_sig2_R,False,False,45.0,45.0,True,44,83,44,2940.0,False,244.97,24.3,0.0992,990,990,3459120.0,14.263
+Lunch,robinsons_location,optimized_formal_only,False,,sig1_G_sig2_G,True,True,0.0,0.0,True,44,83,44,2940.0,False,232.7,24.02,0.1032,990,990,3261120.0,14.156
+Lunch,robinsons_location,optimized_formal_only,False,,sig1_G_sig2_R,True,False,0.0,45.0,True,44,83,44,2940.0,False,225.58,16.9,0.0749,990,990,3261120.0,14.603
+Lunch,robinsons_location,optimized_formal_only,False,,sig1_R_sig2_G,False,True,45.0,0.0,True,44,83,44,2940.0,False,226.59,17.91,0.079,990,990,3261120.0,14.537
+Lunch,robinsons_location,optimized_formal_only,False,,sig1_R_sig2_R,False,False,45.0,45.0,True,44,83,44,2940.0,False,234.27,25.59,0.1092,990,990,3261120.0,14.061
+Lunch,waltermart_location,baseline_all_stops,True,,sig1_G_sig2_G,True,True,0.0,0.0,True,44,83,83,18000.0,True,239.13,18.34,0.0767,980,980,3424240.0,14.612
+Lunch,waltermart_location,baseline_all_stops,True,,sig1_G_sig2_R,True,False,0.0,45.0,True,44,83,83,18000.0,True,237.47,16.68,0.0702,980,980,3424240.0,14.714
+Lunch,waltermart_location,baseline_all_stops,True,,sig1_R_sig2_G,False,True,45.0,0.0,True,44,83,83,18000.0,True,236.51,15.71,0.0664,980,980,3424240.0,14.774
+Lunch,waltermart_location,baseline_all_stops,True,,sig1_R_sig2_R,False,False,45.0,45.0,True,44,83,83,18000.0,True,238.98,18.18,0.0761,980,980,3424240.0,14.621
+Lunch,waltermart_location,optimized_formal_only,False,0.55,sig1_G_sig2_G,True,True,0.0,0.0,True,44,83,83,18000.0,True,223.93,20.33,0.0908,980,980,3228240.0,14.711
+Lunch,waltermart_location,optimized_formal_only,False,0.55,sig1_G_sig2_R,True,False,0.0,45.0,True,44,83,83,18000.0,True,221.84,18.24,0.0822,980,980,3228240.0,14.849
+Lunch,waltermart_location,optimized_formal_only,False,0.55,sig1_R_sig2_G,False,True,45.0,0.0,True,44,83,83,18000.0,True,219.74,16.15,0.0735,980,980,3228240.0,14.991
+Lunch,waltermart_location,optimized_formal_only,False,0.55,sig1_R_sig2_R,False,False,45.0,45.0,True,44,83,83,18000.0,True,222.91,19.31,0.0866,980,980,3228240.0,14.778
+Afternoon Session,robinsons_location,baseline_all_stops,True,,sig1_G_sig2_G,True,True,0.0,0.0,True,106,101,106,3420.0,False,242.91,21.97,0.0905,1640,1640,5730570.0,14.385
+Afternoon Session,robinsons_location,baseline_all_stops,True,,sig1_G_sig2_R,True,False,0.0,45.0,True,106,101,106,3420.0,False,242.1,21.17,0.0874,1640,1640,5730570.0,14.433
+Afternoon Session,robinsons_location,baseline_all_stops,True,,sig1_R_sig2_G,False,True,45.0,0.0,True,106,101,106,3420.0,False,242.71,21.78,0.0897,1640,1640,5730570.0,14.397
+Afternoon Session,robinsons_location,baseline_all_stops,True,,sig1_R_sig2_R,False,False,45.0,45.0,True,106,101,106,3420.0,False,243.37,22.43,0.0922,1640,1640,5730570.0,14.358
+Afternoon Session,robinsons_location,optimized_formal_only,False,,sig1_G_sig2_G,True,True,0.0,0.0,True,106,101,106,3420.0,False,230.58,21.64,0.0939,1640,1640,5402570.0,14.287
+Afternoon Session,robinsons_location,optimized_formal_only,False,,sig1_G_sig2_R,True,False,0.0,45.0,True,106,101,106,3420.0,False,229.79,20.85,0.0907,1640,1640,5402570.0,14.336
+Afternoon Session,robinsons_location,optimized_formal_only,False,,sig1_R_sig2_G,False,True,45.0,0.0,True,106,101,106,3420.0,False,230.08,21.14,0.0919,1640,1640,5402570.0,14.318
+Afternoon Session,robinsons_location,optimized_formal_only,False,,sig1_R_sig2_R,False,False,45.0,45.0,True,106,101,106,3420.0,False,230.72,21.78,0.0944,1640,1640,5402570.0,14.278
+Afternoon Session,waltermart_location,baseline_all_stops,True,,sig1_G_sig2_G,True,True,0.0,0.0,True,106,101,101,18000.0,True,241.5,20.49,0.0849,1630,1630,5718220.0,14.526
+Afternoon Session,waltermart_location,baseline_all_stops,True,,sig1_G_sig2_R,True,False,0.0,45.0,True,106,101,101,18000.0,True,240.86,19.85,0.0824,1630,1630,5710710.0,14.546
+Afternoon Session,waltermart_location,baseline_all_stops,True,,sig1_R_sig2_G,False,True,45.0,0.0,True,106,101,101,18000.0,True,243.7,22.69,0.0931,1630,1630,5748260.0,14.471
+Afternoon Session,waltermart_location,baseline_all_stops,True,,sig1_R_sig2_R,False,False,45.0,45.0,True,106,101,101,18000.0,True,242.15,21.14,0.0873,1630,1630,5703200.0,14.449
+Afternoon Session,waltermart_location,optimized_formal_only,False,0.55,sig1_G_sig2_G,True,True,0.0,0.0,True,106,101,101,18000.0,True,222.38,18.66,0.0839,1630,1630,5369690.0,14.814
+Afternoon Session,waltermart_location,optimized_formal_only,False,0.55,sig1_G_sig2_R,True,False,0.0,45.0,True,106,101,101,18000.0,True,221.98,18.26,0.0823,1630,1630,5369690.0,14.841
+Afternoon Session,waltermart_location,optimized_formal_only,False,0.55,sig1_R_sig2_G,False,True,45.0,0.0,True,106,101,101,18000.0,True,223.02,19.31,0.0866,1630,1630,5369690.0,14.771
+Afternoon Session,waltermart_location,optimized_formal_only,False,0.55,sig1_R_sig2_R,False,False,45.0,45.0,True,106,101,101,18000.0,True,222.99,19.28,0.0864,1630,1630,5369690.0,14.773

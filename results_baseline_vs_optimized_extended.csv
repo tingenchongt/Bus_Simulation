@@ -1,0 +1,25 @@
+session,data_origin,signal_scenario,baseline_avg_travel_time_s,optimized_avg_travel_time_s,time_saved_per_trip_s,pct_improvement_travel_time
+Morning Session,robinsons_location,sig1_G_sig2_G,242.75,228.31,14.44,5.95
+Morning Session,robinsons_location,sig1_G_sig2_R,242.15,227.7,14.45,5.97
+Morning Session,robinsons_location,sig1_R_sig2_G,244.05,230.0,14.05,5.76
+Morning Session,robinsons_location,sig1_R_sig2_R,244.46,230.41,14.05,5.75
+Morning Session,waltermart_location,sig1_G_sig2_G,243.56,224.15,19.41,7.97
+Morning Session,waltermart_location,sig1_G_sig2_R,242.91,223.69,19.22,7.91
+Morning Session,waltermart_location,sig1_R_sig2_G,241.83,223.55,18.28,7.56
+Morning Session,waltermart_location,sig1_R_sig2_R,242.08,223.79,18.29,7.56
+Lunch,robinsons_location,sig1_G_sig2_G,256.92,232.7,24.22,9.43
+Lunch,robinsons_location,sig1_G_sig2_R,242.8,225.58,17.22,7.09
+Lunch,robinsons_location,sig1_R_sig2_G,237.17,226.59,10.58,4.46
+Lunch,robinsons_location,sig1_R_sig2_R,244.97,234.27,10.7,4.37
+Lunch,waltermart_location,sig1_G_sig2_G,239.13,223.93,15.2,6.36
+Lunch,waltermart_location,sig1_G_sig2_R,237.47,221.84,15.63,6.58
+Lunch,waltermart_location,sig1_R_sig2_G,236.51,219.74,16.77,7.09
+Lunch,waltermart_location,sig1_R_sig2_R,238.98,222.91,16.07,6.72
+Afternoon Session,robinsons_location,sig1_G_sig2_G,242.91,230.58,12.33,5.08
+Afternoon Session,robinsons_location,sig1_G_sig2_R,242.1,229.79,12.31,5.08
+Afternoon Session,robinsons_location,sig1_R_sig2_G,242.71,230.08,12.63,5.2
+Afternoon Session,robinsons_location,sig1_R_sig2_R,243.37,230.72,12.65,5.2
+Afternoon Session,waltermart_location,sig1_G_sig2_G,241.5,222.38,19.12,7.92
+Afternoon Session,waltermart_location,sig1_G_sig2_R,240.86,221.98,18.88,7.84
+Afternoon Session,waltermart_location,sig1_R_sig2_G,243.7,223.02,20.68,8.49
+Afternoon Session,waltermart_location,sig1_R_sig2_R,242.15,222.99,19.16,7.91
