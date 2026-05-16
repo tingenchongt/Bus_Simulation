@@ -72,37 +72,7 @@ STOPS_WM_TO_RB: tuple[CorridorStop, ...] = (
     CorridorStop(CORRIDOR_LENGTH_M, "robinsons", "Robinsons terminal", "terminal_formal", "both"),
 )
 
-# First signal encounter = RB→WM at main node (EB / group 0).
-# Second encounter = WM→RB return through same node (WB / group 1).
-# Four labeled scenarios: initial EB phase × shift of WM→RB demand to target WB phase at t≈0.
-@dataclass(frozen=True)
-class SignalEncounterScenario:
-    scenario_id: str
-    first_signal_green_eb: bool
-    second_signal_green_wb: bool
-    signal_offset_s: float
-    wm_to_rb_demand_shift_s: float
-
-
-def _signal_offset_for_eb_initial(green: bool) -> float:
-    """UXsim signal_offset: 0 => EB (group 0) starts in green at t=0."""
-    return 0.0 if green else SIGNAL_GREEN_EB_S
-
-
-SIGNAL_ENCOUNTER_SCENARIOS: tuple[SignalEncounterScenario, ...] = (
-    SignalEncounterScenario(
-        "sig1_G_sig2_G", True, True, _signal_offset_for_eb_initial(True), 0.0
-    ),
-    SignalEncounterScenario(
-        "sig1_G_sig2_R", True, False, _signal_offset_for_eb_initial(True), SIGNAL_GREEN_WB_S
-    ),
-    SignalEncounterScenario(
-        "sig1_R_sig2_G", False, True, _signal_offset_for_eb_initial(False), 0.0
-    ),
-    SignalEncounterScenario(
-        "sig1_R_sig2_R", False, False, _signal_offset_for_eb_initial(False), SIGNAL_GREEN_WB_S
-    ),
-)
+# Signal encounter scenarios: see signal_scenarios.py (2^N patterns for N encounters).
 
 # Mixed traffic: relative demand multipliers vs bus sheet row-count volume (tune as needed).
 @dataclass(frozen=True)

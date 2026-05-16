@@ -1,16 +1,18 @@
 """
 Extended UXsim study: 3049 m corridor, formal/informal stops, mixed traffic, signal scenarios.
 
-Default full matrix (with --all-signals):
-  3 sessions × 4 calibration runs × 4 signal encounter scenarios = 48 UXsim worlds
-  (each world loads bus + private car + jeepney + truck + motorcycle + van demand)
+Signal cases: every Green/Red pattern for N encounters through Aguinaldo_Signal (2^N scenarios).
+  N=2 (default): first pass RB->WM (EB), second pass WM->RB (WB) -> 4 signal cases.
+  N=3: adds a third labeled encounter (extra RB->WM demand wave) -> 8 cases.
+  N=4: 16 cases, etc.
 
-Legacy 12-run study remains in simulation.py.
+Full matrix example (3 sessions, 4 policies, N=3, mixed traffic):
+  3 x 4 x 8 = 96 UXsim runs per execution.
 
 Examples:
-  python simulation_extended.py --quick          # 1 session, 1 signal scenario, 4 policies
-  python simulation_extended.py                  # 48 runs (may take hours)
-  python simulation_extended.py --no-mixed       # buses only
+  python simulation_extended.py --quick --encounters 2
+  python simulation_extended.py --all-signals --encounters 3 --no-mixed
+  python simulation_extended.py --list-signals
 """
 
 from __future__ import annotations
@@ -34,11 +36,14 @@ from corridor_config import (
     OPTIMIZED_SHORT_DWELL_SCALE,
     POLICY_BASELINE,
     POLICY_OPTIMIZED,
-    SIGNAL_ENCOUNTER_SCENARIOS,
     VEHICLE_CLASSES,
-    SignalEncounterScenario,
 )
 from corridor_network import build_corridor_network
+from signal_scenarios import (
+    EST_RB_WM_LEG_BEFORE_RETURN_S,
+    SignalEncounterScenario,
+    all_signal_scenarios,
+)
 
 _PROJECT_DIR = Path(__file__).resolve().parent
 FIGURES_OUTPUT_DIR = _PROJECT_DIR / "figures_output"
@@ -66,15 +71,16 @@ def _collect_metrics_row(
     dist = float(getattr(a, "total_distance_traveled", -1.0))
     ttot = float(getattr(a, "total_travel_time", -1.0))
     vavg = (dist / ttot) if ttot > 0 and dist >= 0 else None
-    return {
+    enc = sig.encounter_greens
+    row: dict[str, object] = {
         "session": sheet_name,
         "data_origin": cal.data_origin,
         "policy": policy_tag,
         "informal_stops": include_informal,
         "short_dwell_scale": short_dwell_scale if short_dwell_scale < 1.0 else "",
         "signal_scenario": sig.scenario_id,
-        "first_signal_green_eb": sig.first_signal_green_eb,
-        "second_signal_green_wb": sig.second_signal_green_wb,
+        "n_signal_encounters": sig.n_encounters,
+        "encounter_pattern": sig.encounter_pattern,
         "signal_offset_s": sig.signal_offset_s,
         "wm_to_rb_demand_shift_s": sig.wm_to_rb_demand_shift_s,
         "mixed_traffic": mixed_traffic,
@@ -91,6 +97,11 @@ def _collect_metrics_row(
         "total_distance_m": round(dist, 1) if dist >= 0 else "",
         "avg_speed_mps": round(vavg, 3) if vavg is not None else "",
     }
+    for i, green in enumerate(enc, start=1):
+        row[f"encounter_{i}_green"] = green
+    if sig.extra_rb_to_wm_shifts:
+        row["extra_rb_to_wm_shifts_s"] = ";".join(str(round(s, 1)) for s in sig.extra_rb_to_wm_shifts)
+    return row
 
 
 def _write_results_csv(rows: list[dict[str, object]], path: Path) -> None:
@@ -128,6 +139,7 @@ def _write_comparison_csv(rows: list[dict[str, object]], path: Path) -> None:
                 "session": sess,
                 "data_origin": origin,
                 "signal_scenario": sig_id,
+                "encounter_pattern": b.get("encounter_pattern", ""),
                 "baseline_avg_travel_time_s": tt_bf,
                 "optimized_avg_travel_time_s": tt_of,
                 "time_saved_per_trip_s": round(save, 2),
@@ -159,6 +171,7 @@ def _add_demands(
     t0 = cal.demand_t0_s
     t1 = cal.demand_t1_s
     t0_wm = t0 + sig.wm_to_rb_demand_shift_s
+    t_horizon = t1 + sig.wm_to_rb_demand_shift_s + sum(sig.extra_rb_to_wm_shifts)
 
     classes = [VEHICLE_CLASSES[0]] if not mixed_traffic else VEHICLE_CLASSES
     for vc in classes:
@@ -166,10 +179,13 @@ def _add_demands(
         vol_wm = max(1, int(round(cal.vol_wm_to_rb * vc.volume_multiplier)))
         if vc.uses_bus_stops:
             W.adddemand(rb_bus, wm_bus, t0, t1, volume=float(vol_rb))
-            W.adddemand(wm_bus, rb_bus, t0_wm, t1 + sig.wm_to_rb_demand_shift_s, volume=float(vol_wm))
+            W.adddemand(wm_bus, rb_bus, t0_wm, t_horizon, volume=float(vol_wm))
+            for j, shift in enumerate(sig.extra_rb_to_wm_shifts):
+                t_start = t0 + EST_RB_WM_LEG_BEFORE_RETURN_S * (j + 1) + shift
+                W.adddemand(rb_bus, wm_bus, t_start, t_horizon, volume=max(1, vol_rb // 4))
         else:
             W.adddemand(rb_road, wm_road, t0, t1, volume=float(vol_rb))
-            W.adddemand(wm_road, rb_road, t0_wm, t1 + sig.wm_to_rb_demand_shift_s, volume=float(vol_wm))
+            W.adddemand(wm_road, rb_road, t0_wm, t_horizon, volume=float(vol_wm))
 
 
 def run_one(
@@ -182,10 +198,14 @@ def run_one(
     sig: SignalEncounterScenario,
     mixed_traffic: bool,
     results_rows: list[dict[str, object]] | None,
+    save_figures: bool,
 ) -> World:
     cal = load_session_stats(sheet_name, data_origin=data_origin)
     print(f"\n{'='*60}")
-    print(f"  {sheet_name} | {cal.data_origin} | {policy_tag} | {sig.scenario_id} | mixed={mixed_traffic}")
+    print(
+        f"  {sheet_name} | {cal.data_origin} | {policy_tag} | "
+        f"{sig.scenario_id} ({sig.encounter_pattern}) | mixed={mixed_traffic}"
+    )
     print(f"{'='*60}")
     print_calibration(cal)
 
@@ -193,7 +213,8 @@ def run_one(
     if not mixed_traffic:
         safe += "_bus_only"
 
-    W = World(name=safe, print_mode=1, tmax=cal.sim_tmax_s + sig.wm_to_rb_demand_shift_s, save_mode=1, show_mode=0)
+    extra_t = sig.wm_to_rb_demand_shift_s + sum(sig.extra_rb_to_wm_shifts)
+    W = World(name=safe, print_mode=1, tmax=cal.sim_tmax_s + extra_t, save_mode=1, show_mode=0)
     nodes = build_corridor_network(
         W,
         cal,
@@ -219,20 +240,23 @@ def run_one(
             )
         )
 
-    FIGURES_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    try:
-        W.analyzer.network_average(left_handed=0, figsize=(12, 4), network_font_size=7)
-        png = _PROJECT_DIR / f"out{safe}" / "network_average.png"
-        if png.is_file():
-            shutil.copy2(png, FIGURES_OUTPUT_DIR / f"{safe}_network_average.png")
-    except Exception as exc:
-        print(f"  Figure skipped: {exc}")
+    if save_figures:
+        FIGURES_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            W.analyzer.network_average(left_handed=0, figsize=(12, 4), network_font_size=7)
+            png = _PROJECT_DIR / f"out{safe}" / "network_average.png"
+            if png.is_file():
+                shutil.copy2(png, FIGURES_OUTPUT_DIR / f"{safe}_network_average.png")
+        except Exception as exc:
+            print(f"  Figure skipped: {exc}")
 
     return W
 
 
-def _run_plan(quick: bool, all_signals: bool, sessions: list[str]) -> list[tuple]:
-    sigs = list(SIGNAL_ENCOUNTER_SCENARIOS) if all_signals else [SIGNAL_ENCOUNTER_SCENARIOS[0]]
+def _run_plan(
+    sessions: list[str],
+    signal_scenarios: tuple[SignalEncounterScenario, ...],
+) -> list[tuple]:
     plan: list[tuple] = []
     for sh in sessions:
         for origin, informal, dwell_scale, pol in [
@@ -241,28 +265,49 @@ def _run_plan(quick: bool, all_signals: bool, sessions: list[str]) -> list[tuple
             ("waltermart", True, 1.0, POLICY_BASELINE),
             ("waltermart", False, OPTIMIZED_SHORT_DWELL_SCALE, POLICY_OPTIMIZED),
         ]:
-            for sig in sigs:
+            for sig in signal_scenarios:
                 plan.append((sh, origin, informal, dwell_scale, pol, sig))
     return plan
 
 
 def main() -> None:
     os.chdir(_PROJECT_DIR)
-    p = argparse.ArgumentParser(description="Extended corridor UXsim (3049 m, mixed traffic, signal scenarios)")
-    p.add_argument("--quick", action="store_true", help="Morning Session only, first signal scenario")
-    p.add_argument("--all-signals", action="store_true", help="All 4 first/second signal encounter labels")
-    p.add_argument("--no-mixed", action="store_true", help="Bus demand only (no cars/jeeps/etc.)")
+    p = argparse.ArgumentParser(description="Extended corridor UXsim with 2^N signal encounter scenarios")
+    p.add_argument("--quick", action="store_true", help="Morning Session only (still runs all 2^N signal cases)")
+    p.add_argument(
+        "--single-signal",
+        action="store_true",
+        help="Run only the first signal pattern (fast smoke test)",
+    )
+    p.add_argument(
+        "--encounters",
+        type=int,
+        default=2,
+        metavar="N",
+        help="Number of signal encounters per scenario (2=4 cases, 3=8, 4=16, ... max 6)",
+    )
+    p.add_argument("--no-mixed", action="store_true", help="Bus demand only")
+    p.add_argument("--no-figures", action="store_true", help="Skip PNG export (faster for large matrices)")
+    p.add_argument("--list-signals", action="store_true", help="Print all signal scenario IDs and exit")
     args = p.parse_args()
 
-    sessions = [SESSION_SHEETS[0]] if args.quick else list(SESSION_SHEETS)
-    all_signals = args.all_signals or not args.quick
-    if args.quick:
-        all_signals = False
+    scenarios = all_signal_scenarios(args.encounters)
+    if args.list_signals:
+        print(f"Signal scenarios for N={args.encounters} encounters ({len(scenarios)} total):\n")
+        for s in scenarios:
+            print(f"  {s.scenario_id:20}  pattern {s.encounter_pattern}  offset={s.signal_offset_s:.0f}s  wm_shift={s.wm_to_rb_demand_shift_s:.0f}s")
+        return
 
-    plan = _run_plan(args.quick, all_signals, sessions)
+    sessions = [SESSION_SHEETS[0]] if args.quick else list(SESSION_SHEETS)
+    signal_scenarios = (scenarios[0],) if args.single_signal else scenarios
+
+    plan = _run_plan(sessions, signal_scenarios)
+    n_sig = len(signal_scenarios)
     n = len(plan)
     mixed = not args.no_mixed
-    print(f"Planned runs: {n} (mixed_traffic={mixed})")
+    print(f"Encounters N={args.encounters} -> {n_sig} signal patterns (2^{args.encounters})")
+    print(f"Planned UXsim runs: {n} = {len(sessions)} sessions x 4 policies x {n_sig} signals")
+    print(f"  mixed_traffic={mixed}  save_figures={not args.no_figures}")
 
     rows: list[dict[str, object]] = []
     for sh, origin, informal, dwell_scale, pol, sig in plan:
@@ -275,11 +320,12 @@ def main() -> None:
             sig=sig,
             mixed_traffic=mixed,
             results_rows=rows,
+            save_figures=not args.no_figures,
         )
 
     _write_results_csv(rows, RESULTS_SUMMARY_CSV)
     _write_comparison_csv(rows, RESULTS_COMPARISON_CSV)
-    print(f"\nDone. {len(rows)} runs written. Figures under {FIGURES_OUTPUT_DIR}")
+    print(f"\nDone. {len(rows)} runs -> {RESULTS_SUMMARY_CSV}")
 
 
 if __name__ == "__main__":
