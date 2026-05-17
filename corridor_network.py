@@ -1,5 +1,5 @@
 """
-Build the 3049 m Robinsons–Waltermart corridor in UXsim (chainage-aligned stops + bypass for non-bus traffic).
+Build the 3049 m Robinsons–Waltermart corridor in UXsim (stops + three 180 s signals).
 """
 
 from __future__ import annotations
@@ -8,12 +8,10 @@ from typing import TYPE_CHECKING
 
 from corridor_config import (
     CORRIDOR_LENGTH_M,
+    CORRIDOR_SIGNALS,
     DEFAULT_DWELL_S,
     FREE_FLOW_MPS,
     LANES_MAIN,
-    SIGNAL_CHAINAGE_M,
-    SIGNAL_GREEN_EB_S,
-    SIGNAL_GREEN_WB_S,
     STOP_LANES,
     STOP_LINK_LENGTH_M,
     STOPS_RB_TO_WM,
@@ -60,74 +58,81 @@ def build_corridor_network(
     short_dwell_scale: float = 1.0,
     signal_offset_s: float = 0.0,
 ) -> dict[str, object]:
-    """Returns rb_bus_stop, wm_bus_stop, rb_road, wm_road for demand injection."""
+    """Returns rb_bus_stop, wm_bus_stop, rb_road, wm_road, and signal nodes keyed by name."""
     u = FREE_FLOW_MPS
-    road_nodes: list[object] = []
-    chainages: list[float] = []
-
-    def add_road(name: str, x: float) -> object:
-        n = W.addNode(name, x, 0.0)
-        road_nodes.append(n)
-        return n
+    signal_nodes: dict[str, object] = {}
 
     def link_cruise(name: str, a: object, b: object, length: float, group: int) -> None:
         W.addLink(name, a, b, length, u, number_of_lanes=LANES_MAIN, signal_group=[group])
         W.addLink(f"{name}_rev", b, a, length, u, number_of_lanes=LANES_MAIN, signal_group=[1 - group])
 
-    # Terminals
     rb_stop = W.addNode("Robinsons_BusStop", 0.0, 0.0)
-    rb_road = add_road("Robinsons_Road", STOP_LINK_LENGTH_M)
+    rb_road = W.addNode("Robinsons_Road", STOP_LINK_LENGTH_M, 0.0)
     dwell_rb = _dwell_seconds("terminal_formal", cal, short_dwell_scale)
     u_rb = _speed_from_dwell(dwell_rb)
     W.addLink("RB_Stop_in", rb_road, rb_stop, STOP_LINK_LENGTH_M, u_rb, number_of_lanes=STOP_LANES)
     W.addLink("RB_Stop_out", rb_stop, rb_road, STOP_LINK_LENGTH_M, u_rb, number_of_lanes=STOP_LANES)
-    chainages.append(0.0)
 
     prev = rb_road
     prev_chain = 0.0
-    stop_nodes: dict[str, object] = {}
 
-    # Eastbound chain RB → WM (skip terminal rows; signal and WM handled separately)
-    eb_stops = [s for s in STOPS_RB_TO_WM if s.key not in ("robinsons", "waltermart", "signal")]
-    for stop in eb_stops:
-        cruise = _cruise_len(prev_chain, stop.chainage_m)
-        if stop.kind == "informal" and not include_informal_stops:
-            next_road = W.addNode(f"Road_{stop.key}", prev.x + cruise, 0.0)
-            link_cruise(f"skip_{stop.key}", prev, next_road, cruise, 0)
-            prev = next_road
-            prev_chain = stop.chainage_m
-            continue
-        entry = W.addNode(f"{stop.key}_Entry", prev.x + cruise, 0.0)
-        stop_n = W.addNode(f"{stop.key}_Stop", entry.x + STOP_LINK_LENGTH_M, 0.0)
-        exit_n = W.addNode(f"{stop.key}_Exit", stop_n.x + STOP_LINK_LENGTH_M, 0.0)
-        dwell = _dwell_seconds(stop.kind, cal, short_dwell_scale)
-        us = _speed_from_dwell(dwell)
-        W.addLink(f"{stop.key}_bay_in", entry, stop_n, STOP_LINK_LENGTH_M, us, number_of_lanes=STOP_LANES)
-        W.addLink(f"{stop.key}_bay_out", stop_n, exit_n, STOP_LINK_LENGTH_M, us, number_of_lanes=STOP_LANES)
-        link_cruise(f"to_{stop.key}", prev, entry, cruise, 0)
-        W.addLink(f"bypass_{stop.key}", prev, exit_n, cruise + 2.0 * STOP_LINK_LENGTH_M, u, number_of_lanes=LANES_MAIN, signal_group=[0])
-        W.addLink(f"bypass_{stop.key}_rev", exit_n, prev, cruise + 2.0 * STOP_LINK_LENGTH_M, u, number_of_lanes=LANES_MAIN, signal_group=[1])
-        stop_nodes[stop.key] = stop_n
-        prev = exit_n
-        prev_chain = stop.chainage_m
-        chainages.append(stop.chainage_m)
+    eb_stops = [s for s in STOPS_RB_TO_WM if s.key not in ("robinsons", "waltermart")]
+    stop_by_chain = {s.chainage_m: s for s in eb_stops}
+    sig_by_chain = {s.chainage_m: s for s in CORRIDOR_SIGNALS}
+    milestones = sorted(set(stop_by_chain) | set(sig_by_chain))
 
-    # Signal
-    cruise_sig = _cruise_len(prev_chain, SIGNAL_CHAINAGE_M)
-    signal = W.addNode(
-        "Aguinaldo_Signal",
-        prev.x + cruise_sig,
-        0.0,
-        signal=[SIGNAL_GREEN_EB_S, SIGNAL_GREEN_WB_S],
-        signal_offset=signal_offset_s,
-    )
-    link_cruise("to_signal", prev, signal, cruise_sig, 0)
-    prev = signal
-    prev_chain = SIGNAL_CHAINAGE_M
+    for chain in milestones:
+        cruise = _cruise_len(prev_chain, chain)
+        if chain in sig_by_chain:
+            sig = sig_by_chain[chain]
+            node = W.addNode(
+                sig.key,
+                prev.x + cruise,
+                0.0,
+                signal=[sig.green_eb_s, sig.green_wb_s],
+                signal_offset=signal_offset_s,
+            )
+            link_cruise(f"to_{sig.key}", prev, node, cruise, 0)
+            signal_nodes[sig.key] = node
+            prev = node
+        else:
+            stop = stop_by_chain[chain]
+            if stop.kind == "informal" and not include_informal_stops:
+                next_road = W.addNode(f"Road_{stop.key}", prev.x + cruise, 0.0)
+                link_cruise(f"skip_{stop.key}", prev, next_road, cruise, 0)
+                prev = next_road
+            else:
+                entry = W.addNode(f"{stop.key}_Entry", prev.x + cruise, 0.0)
+                stop_n = W.addNode(f"{stop.key}_Stop", entry.x + STOP_LINK_LENGTH_M, 0.0)
+                exit_n = W.addNode(f"{stop.key}_Exit", stop_n.x + STOP_LINK_LENGTH_M, 0.0)
+                dwell = _dwell_seconds(stop.kind, cal, short_dwell_scale)
+                us = _speed_from_dwell(dwell)
+                W.addLink(f"{stop.key}_bay_in", entry, stop_n, STOP_LINK_LENGTH_M, us, number_of_lanes=STOP_LANES)
+                W.addLink(f"{stop.key}_bay_out", stop_n, exit_n, STOP_LINK_LENGTH_M, us, number_of_lanes=STOP_LANES)
+                link_cruise(f"to_{stop.key}", prev, entry, cruise, 0)
+                W.addLink(
+                    f"bypass_{stop.key}",
+                    prev,
+                    exit_n,
+                    cruise + 2.0 * STOP_LINK_LENGTH_M,
+                    u,
+                    number_of_lanes=LANES_MAIN,
+                    signal_group=[0],
+                )
+                W.addLink(
+                    f"bypass_{stop.key}_rev",
+                    exit_n,
+                    prev,
+                    cruise + 2.0 * STOP_LINK_LENGTH_M,
+                    u,
+                    number_of_lanes=LANES_MAIN,
+                    signal_group=[1],
+                )
+                prev = exit_n
+        prev_chain = chain
 
-    # Waltermart
     cruise_wm = _cruise_len(prev_chain, CORRIDOR_LENGTH_M)
-    wm_road = add_road("Waltermart_Road", prev.x + cruise_wm)
+    wm_road = W.addNode("Waltermart_Road", prev.x + cruise_wm, 0.0)
     link_cruise("to_wm_road", prev, wm_road, cruise_wm, 0)
     wm_stop = W.addNode("Waltermart_BusStop", wm_road.x + STOP_LINK_LENGTH_M, 0.0)
     dwell_wm = _dwell_seconds("terminal_formal", cal, short_dwell_scale)
@@ -135,14 +140,17 @@ def build_corridor_network(
     W.addLink("WM_Stop_in", wm_road, wm_stop, STOP_LINK_LENGTH_M, u_wm, number_of_lanes=STOP_LANES)
     W.addLink("WM_Stop_out", wm_stop, wm_road, STOP_LINK_LENGTH_M, u_wm, number_of_lanes=STOP_LANES)
 
-    policy = "baseline (formal + informal)" if include_informal_stops else "optimized (formal + Vista only; informal removed)"
+    policy = "baseline (formal + informal)" if include_informal_stops else "optimized (formal + Vista; informal removed)"
+    sig_line = ", ".join(f"{s.key}@{s.chainage_m:.0f}m" for s in CORRIDOR_SIGNALS)
     print(f"  Extended corridor: {policy}")
-    print(f"  Length {CORRIDOR_LENGTH_M:.0f} m | signal @ {SIGNAL_CHAINAGE_M:.0f} m | offset {signal_offset_s:.0f} s")
+    print(f"  Length {CORRIDOR_LENGTH_M:.0f} m | signals (180s): {sig_line}")
+    print(f"  Synchronized offset {signal_offset_s:.0f} s on all signals")
 
     return {
         "rb_bus_stop": rb_stop,
         "wm_bus_stop": wm_stop,
         "rb_road": rb_road,
         "wm_road": wm_road,
-        "signal": signal,
+        "signal": signal_nodes.get("aguinaldo_mid"),
+        "signals": signal_nodes,
     }

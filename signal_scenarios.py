@@ -1,14 +1,10 @@
 """
-Build all Green/Red traffic-signal encounter patterns for UXsim runs.
+Green/Red encounter patterns for all signal passes on a round trip.
 
-Each encounter is one passage through Aguinaldo_Signal:
-  encounter 1, 3, 5, ...  -> eastbound (Robinsons -> Waltermart), signal group 0
-  encounter 2, 4, 6, ...  -> westbound (Waltermart -> Robinsons), signal group 1
+With 3 corridor signals (Pala-Pala, Aguinaldo mid, Waltermart intersection), a full
+round trip has 6 encounters (3 eastbound + 3 westbound) -> 2^6 = 64 patterns.
 
-For N encounters there are 2^N scenarios (e.g. N=2 -> G/G, G/R, R/G, R/R).
-
-Timing uses representative arrival times + demand shifts so the modeled phase at
-arrival matches the label (sensitivity analysis; not field-logged signal phases).
+3 sessions x 4 policies x 64 = 768 simulations (>= 320).
 """
 
 from __future__ import annotations
@@ -18,17 +14,36 @@ from dataclasses import dataclass
 
 from corridor_config import (
     CORRIDOR_LENGTH_M,
+    CORRIDOR_SIGNALS,
     FREE_FLOW_MPS,
-    SIGNAL_CHAINAGE_M,
     SIGNAL_CYCLE_S,
+    SIGNAL_ENCOUNTERS_PER_ROUND_TRIP,
     SIGNAL_GREEN_EB_S,
     SIGNAL_GREEN_WB_S,
 )
 
-# Representative seconds from demand start to signal (no queue), for phase targeting.
-EST_RB_DEPART_TO_SIGNAL_S = SIGNAL_CHAINAGE_M / FREE_FLOW_MPS
-EST_WM_DEPART_TO_SIGNAL_S = (CORRIDOR_LENGTH_M - SIGNAL_CHAINAGE_M) / FREE_FLOW_MPS
-EST_RB_WM_LEG_BEFORE_RETURN_S = EST_RB_DEPART_TO_SIGNAL_S + (CORRIDOR_LENGTH_M - SIGNAL_CHAINAGE_M) / FREE_FLOW_MPS + 50.0
+N_SIGNALS = len(CORRIDOR_SIGNALS)
+
+
+def _arrival_t_eb(signal_index: int) -> float:
+    return CORRIDOR_SIGNALS[signal_index].chainage_m / FREE_FLOW_MPS
+
+
+def _arrival_t_wb(signal_index: int) -> float:
+    return (CORRIDOR_LENGTH_M - CORRIDOR_SIGNALS[signal_index].chainage_m) / FREE_FLOW_MPS
+
+
+def _encounter_group_and_base_arrival(encounter_i: int) -> tuple[int, float]:
+    """encounter 0..N-1: EB at signals 0..; encounter N..2N-1: WB at signals N-1..0."""
+    if encounter_i < N_SIGNALS:
+        return 0, _arrival_t_eb(encounter_i)
+    j = 2 * N_SIGNALS - 1 - encounter_i
+    return 1, _arrival_t_wb(j)
+
+
+EST_RB_WM_LEG_BEFORE_RETURN_S = (
+    CORRIDOR_LENGTH_M / FREE_FLOW_MPS + 50.0
+)
 
 
 def _group_is_green(t: float, group: int, offset_s: float) -> bool:
@@ -39,7 +54,6 @@ def _group_is_green(t: float, group: int, offset_s: float) -> bool:
 
 
 def _offset_for_group_at_time(want_green: bool, group: int, arrival_t: float) -> float:
-    """Pick offset in {0, green_other} so phase at arrival_t matches want_green for group."""
     candidates = (0.0, SIGNAL_GREEN_EB_S) if group == 0 else (0.0, SIGNAL_GREEN_WB_S)
     for off in candidates:
         if _group_is_green(arrival_t, group, off) == want_green:
@@ -53,11 +67,9 @@ def _shift_for_group_at_time(
     offset_s: float,
     base_arrival_t: float,
 ) -> float:
-    """Seconds to add to that leg's demand start so arrival hits desired phase."""
     step = 5.0
     for shift in range(0, int(SIGNAL_CYCLE_S), int(step)):
-        t_arr = base_arrival_t + float(shift)
-        if _group_is_green(t_arr, group, offset_s) == want_green:
+        if _group_is_green(base_arrival_t + float(shift), group, offset_s) == want_green:
             return float(shift)
     return 0.0 if want_green else (SIGNAL_GREEN_WB_S if group == 1 else SIGNAL_GREEN_EB_S)
 
@@ -69,6 +81,7 @@ class SignalEncounterScenario:
     signal_offset_s: float
     wm_to_rb_demand_shift_s: float
     extra_rb_to_wm_shifts: tuple[float, ...]
+    leg_shifts_s: tuple[float, ...]
 
     @property
     def n_encounters(self) -> int:
@@ -86,39 +99,41 @@ def _scenario_id(pattern: tuple[bool, ...]) -> str:
 def build_signal_scenario(pattern: tuple[bool, ...]) -> SignalEncounterScenario:
     if not pattern:
         raise ValueError("pattern must have at least one encounter")
-    offset = _offset_for_group_at_time(pattern[0], 0, EST_RB_DEPART_TO_SIGNAL_S)
-    wm_shift = 0.0
-    extra_rb: list[float] = []
 
-    if len(pattern) >= 2:
-        base_wm = EST_RB_WM_LEG_BEFORE_RETURN_S
-        wm_shift = _shift_for_group_at_time(pattern[1], 1, offset, base_wm)
+    leg_shifts: list[float] = []
+    group0, t0 = _encounter_group_and_base_arrival(0)
+    offset = _offset_for_group_at_time(pattern[0], group0, t0)
 
-    for i in range(2, len(pattern)):
-        group = 0 if i % 2 == 0 else 1
-        if group == 0:
-            base = EST_RB_WM_LEG_BEFORE_RETURN_S * (i // 2) + EST_RB_DEPART_TO_SIGNAL_S
-            extra_rb.append(_shift_for_group_at_time(pattern[i], 0, offset, base))
-        else:
-            wm_shift = _shift_for_group_at_time(
-                pattern[i], 1, offset, EST_RB_WM_LEG_BEFORE_RETURN_S * ((i + 1) // 2)
-            )
+    cumulative = 0.0
+    for i in range(1, len(pattern)):
+        group, base_t = _encounter_group_and_base_arrival(i)
+        if i == N_SIGNALS:
+            base_t = EST_RB_WM_LEG_BEFORE_RETURN_S
+        elif i > N_SIGNALS:
+            base_t = EST_RB_WM_LEG_BEFORE_RETURN_S + _arrival_t_wb(2 * N_SIGNALS - 1 - i)
+        shift = _shift_for_group_at_time(pattern[i], group, offset, base_t + cumulative)
+        leg_shifts.append(shift)
+        cumulative += shift
+
+    wm_shift = leg_shifts[N_SIGNALS - 1] if len(leg_shifts) >= N_SIGNALS else 0.0
+    extra_rb = tuple(leg_shifts[N_SIGNALS:]) if len(leg_shifts) > N_SIGNALS else ()
 
     return SignalEncounterScenario(
         scenario_id=_scenario_id(pattern),
         encounter_greens=pattern,
         signal_offset_s=offset,
         wm_to_rb_demand_shift_s=wm_shift,
-        extra_rb_to_wm_shifts=tuple(extra_rb),
+        extra_rb_to_wm_shifts=extra_rb,
+        leg_shifts_s=tuple(leg_shifts),
     )
 
 
-def all_signal_scenarios(n_encounters: int) -> tuple[SignalEncounterScenario, ...]:
-    if n_encounters < 1 or n_encounters > 6:
-        raise ValueError("n_encounters must be between 1 and 6 (2^N runs grows fast)")
-    patterns = list(itertools.product((True, False), repeat=n_encounters))
+def all_signal_scenarios(n_encounters: int | None = None) -> tuple[SignalEncounterScenario, ...]:
+    n = n_encounters if n_encounters is not None else SIGNAL_ENCOUNTERS_PER_ROUND_TRIP
+    if n < 1 or n > 8:
+        raise ValueError("n_encounters must be between 1 and 8")
+    patterns = list(itertools.product((True, False), repeat=n))
     return tuple(build_signal_scenario(p) for p in patterns)
 
 
-# Backward-compatible 2-encounter set (round-trip bus: first EB, second WB).
-SIGNAL_ENCOUNTER_SCENARIOS: tuple[SignalEncounterScenario, ...] = all_signal_scenarios(2)
+SIGNAL_ENCOUNTER_SCENARIOS: tuple[SignalEncounterScenario, ...] = all_signal_scenarios()

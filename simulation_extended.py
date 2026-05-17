@@ -1,17 +1,13 @@
 """
-Extended UXsim study: 3049 m corridor, formal/informal stops, mixed traffic, signal scenarios.
+Extended UXsim study: 3049 m corridor, three 180 s signals, mixed traffic, G/R scenarios.
 
-Signal cases: every Green/Red pattern for N encounters through Aguinaldo_Signal (2^N scenarios).
-  N=2 (default): first pass RB->WM (EB), second pass WM->RB (WB) -> 4 signal cases.
-  N=3: adds a third labeled encounter (extra RB->WM demand wave) -> 8 cases.
-  N=4: 16 cases, etc.
-
-Full matrix example (3 sessions, 4 policies, N=3, mixed traffic):
-  3 x 4 x 8 = 96 UXsim runs per execution.
+Signals (GPS): Pala-Pala, Aguinaldo mid (2495 m), Waltermart intersection.
+Round trip = 6 signal encounters -> 2^6 = 64 G/R patterns.
+Full matrix: 3 sessions x 4 policies x 64 = 768 runs (>= 320).
 
 Examples:
-  python simulation_extended.py --quick --encounters 2
-  python simulation_extended.py --all-signals --encounters 3 --no-mixed
+  python simulation_extended.py --no-figures
+  python simulation_extended.py --quick --no-figures
   python simulation_extended.py --list-signals
 """
 
@@ -33,9 +29,11 @@ from bus_calibration import (
     print_calibration,
 )
 from corridor_config import (
+    MIN_FULL_MATRIX_RUNS,
     OPTIMIZED_SHORT_DWELL_SCALE,
     POLICY_BASELINE,
     POLICY_OPTIMIZED,
+    SIGNAL_ENCOUNTERS_PER_ROUND_TRIP,
     VEHICLE_CLASSES,
 )
 from corridor_network import build_corridor_network
@@ -282,9 +280,9 @@ def main() -> None:
     p.add_argument(
         "--encounters",
         type=int,
-        default=2,
+        default=SIGNAL_ENCOUNTERS_PER_ROUND_TRIP,
         metavar="N",
-        help="Number of signal encounters per scenario (2=4 cases, 3=8, 4=16, ... max 6)",
+        help=f"Signal encounters (default {SIGNAL_ENCOUNTERS_PER_ROUND_TRIP}=64 patterns, 768 runs)",
     )
     p.add_argument("--no-mixed", action="store_true", help="Bus demand only")
     p.add_argument("--no-figures", action="store_true", help="Skip PNG export (faster for large matrices)")
@@ -307,6 +305,8 @@ def main() -> None:
     mixed = not args.no_mixed
     print(f"Encounters N={args.encounters} -> {n_sig} signal patterns (2^{args.encounters})")
     print(f"Planned UXsim runs: {n} = {len(sessions)} sessions x 4 policies x {n_sig} signals")
+    if len(sessions) == 3 and n_sig == 64:
+        print(f"  Full matrix target: {MIN_FULL_MATRIX_RUNS} runs (>= 320)")
     print(f"  mixed_traffic={mixed}  save_figures={not args.no_figures}")
 
     rows: list[dict[str, object]] = []

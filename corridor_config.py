@@ -21,23 +21,70 @@ DEFAULT_DWELL_S = 40.0
 # Total corridor length (terminal to terminal along mainline chainage).
 CORRIDOR_LENGTH_M = 3049.0
 
-# Main signal at chainage 2495 m (forward direction); 45 s + 45 s.
-SIGNAL_CHAINAGE_M = 2495.0
-SIGNAL_GREEN_EB_S = 45.0
-SIGNAL_GREEN_WB_S = 45.0
-SIGNAL_CYCLE_S = SIGNAL_GREEN_EB_S + SIGNAL_GREEN_WB_S
+# Signal cycle 180 s (90 s eastbound + 90 s westbound per intersection).
+SIGNAL_CYCLE_S = 180.0
+SIGNAL_GREEN_EB_S = 90.0
+SIGNAL_GREEN_WB_S = 90.0
 
-# GPS reference (documentation / maps; not used in 1D UXsim layout).
+# Legacy alias (mid-corridor Aguinaldo signal chainage).
+SIGNAL_CHAINAGE_M = 2495.0
+
+
+def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    from math import asin, cos, radians, sin, sqrt
+
+    r = 6371000.0
+    p1, p2 = radians(lat1), radians(lat2)
+    dlat, dlon = radians(lat2 - lat1), radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(p1) * cos(p2) * sin(dlon / 2) ** 2
+    return 2 * r * asin(sqrt(a))
+
+
+# GPS reference (field / Maps).
+GPS_ORIGIN_RB = (14.3002, 120.9529)
 GPS_STOPS = {
-    "robinsons": (14.3002, 120.9529),
-    "informal_robinsons": (14.3002, 120.9529),
+    "robinsons": GPS_ORIGIN_RB,
+    "informal_robinsons": GPS_ORIGIN_RB,
     "seven_eleven": (14.3019, 120.9523),
     "villa_verde": (14.3149, 120.9450),
     "vista_mall": (14.31687, 120.94415),
-    "signal": None,
     "rcbc": (14.3236, 120.9415),
     "waltermart": (14.3250, 120.9410),
 }
+
+
+@dataclass(frozen=True)
+class CorridorSignal:
+    key: str
+    label: str
+    chainage_m: float
+    gps: tuple[float, float]
+    green_eb_s: float = SIGNAL_GREEN_EB_S
+    green_wb_s: float = SIGNAL_GREEN_WB_S
+
+    @property
+    def cycle_s(self) -> float:
+        return self.green_eb_s + self.green_wb_s
+
+
+# Three signalized intersections (180 s cycle each); chainage from Robinsons origin.
+# Pala-Pala / Waltermart positions from GPS; mid corridor retained at 2495 m.
+_CHAIN_PALA = round(_haversine_m(*GPS_ORIGIN_RB, 14.30245, 120.95427))
+_CHAIN_WM_INT = CORRIDOR_LENGTH_M - round(_haversine_m(14.3250, 120.9410, 14.32556, 120.94083))
+
+CORRIDOR_SIGNALS: tuple[CorridorSignal, ...] = (
+    CorridorSignal("pala_pala", "Pala-Pala Intersection Signal", float(_CHAIN_PALA), (14.30245, 120.95427)),
+    CorridorSignal("aguinaldo_mid", "Aguinaldo mid-corridor Signal", SIGNAL_CHAINAGE_M, (14.31687, 120.94415)),
+    CorridorSignal(
+        "waltermart_int",
+        "Waltermart Dasmariñas Intersection Signal",
+        float(_CHAIN_WM_INT),
+        (14.32556, 120.94083),
+    ),
+)
+
+# Round-trip: one pass per signal per direction (see signal_scenarios.py).
+SIGNAL_ENCOUNTERS_PER_ROUND_TRIP = len(CORRIDOR_SIGNALS) * 2
 
 StopKind = Literal["terminal_formal", "formal", "informal", "signal"]
 
@@ -58,7 +105,6 @@ STOPS_RB_TO_WM: tuple[CorridorStop, ...] = (
     CorridorStop(200, "seven_eleven", "7-Eleven Pala Pala", "informal", "rb_to_wm"),
     CorridorStop(1845, "villa_verde", "Villa Verde", "informal", "rb_to_wm"),
     CorridorStop(2083, "vista_mall", "Vista Mall", "formal", "rb_to_wm"),
-    CorridorStop(SIGNAL_CHAINAGE_M, "signal", "Signal intersection", "signal", "both"),
     CorridorStop(2884, "rcbc", "RCBC Bank [post-signal]", "informal", "rb_to_wm"),
     CorridorStop(CORRIDOR_LENGTH_M, "waltermart", "Waltermart terminal", "terminal_formal", "both"),
 )
@@ -83,6 +129,9 @@ SESSION_DWELL: dict[str, dict[str, float]] = {
 
 SESSIONS: tuple[str, ...] = ("Morning Session", "Lunch", "Afternoon Session")
 ORIGINS: tuple[str, ...] = ("robinsons_location", "waltermart_location")
+
+# 3 sessions x 4 policies x 2^6 signal patterns = 768 runs (>= 320).
+MIN_FULL_MATRIX_RUNS = len(SESSIONS) * 4 * (2**SIGNAL_ENCOUNTERS_PER_ROUND_TRIP)
 
 # Notebook exploratory flows (veh/s); simulation_extended.py uses Excel row volumes instead.
 SESSION_DEMAND: dict[str, dict[str, float]] = {
@@ -212,12 +261,17 @@ INFORMAL_STOPS_REV = informal_stops_rev()
 
 
 def print_corridor_legend() -> None:
-    print("Forward (Robinsons -> Waltermart):")
+    print("Signals (180 s cycle, 90 s EB + 90 s WB each):")
+    for sig in CORRIDOR_SIGNALS:
+        print(f"  {sig.chainage_m:4.0f}m  {sig.label}  GPS {sig.gps}")
+    print("Forward (Robinsons -> Waltermart) stops:")
     for s in STOPS_RB_TO_WM:
-        print(f"  {s.chainage_m:4.0f}m  [{s.kind:16s}]  {s.label}")
-    print("Reverse (Waltermart -> Robinsons):")
+        if s.kind != "signal":
+            print(f"  {s.chainage_m:4.0f}m  [{s.kind:16s}]  {s.label}")
+    print("Reverse (Waltermart -> Robinsons) stops:")
     for s in STOPS_WM_TO_RB:
-        print(f"  {s.chainage_m:4.0f}m  [{s.kind:16s}]  {s.label}")
+        if s.kind != "signal":
+            print(f"  {s.chainage_m:4.0f}m  [{s.kind:16s}]  {s.label}")
 
 
 # Mixed traffic: relative demand multipliers vs bus sheet row-count volume (tune as needed).
